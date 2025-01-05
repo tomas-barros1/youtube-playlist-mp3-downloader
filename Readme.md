@@ -40,10 +40,15 @@ Se você preferir executar o código fonte:
 
 ### Pré-requisitos
 
-Para o executável:
-
-- FFmpeg instalado no sistema
-- Um navegador compatível instalado (Chrome, Firefox, Edge, Opera, Brave, Safari ou Vivaldi)
+- **FFmpeg instalado no sistema:** O FFmpeg pode ser facilmente instalado no Windows utilizando o `winget`. Para isso, siga os passos abaixo:
+  1. Abra o **Prompt de Comando** ou **PowerShell** como administrador.
+  2. Execute o seguinte comando para instalar o FFmpeg:
+     ```bash
+     winget install Gyan.FFmpeg.Essentials
+     ```
+  O FFmpeg será instalado e adicionado automaticamente ao **PATH** do sistema, permitindo o uso em qualquer terminal.
+  
+  Mais informações sobre o `winget` podem ser encontradas na [documentação oficial](https://learn.microsoft.com/pt-br/windows/package-manager/winget/).
 
 ### Navegadores Suportados
 
@@ -97,8 +102,15 @@ If you prefer to run from source:
 
 For the executable:
 
-- FFmpeg installed on system
-- A compatible browser installed (Chrome, Firefox, Edge, Opera, Brave, Safari, or Vivaldi)
+- **FFmpeg installed on the system:** FFmpeg can be easily installed on Windows using `winget`. To do this, follow the steps below:
+  1. Open **Command Prompt** or **PowerShell** as administrator.
+  2. Run the following command to install FFmpeg:
+     ```bash
+     winget install Gyan.FFmpeg.Essentials
+     ```
+  FFmpeg will be installed and automatically added to the system **PATH**, allowing use in any terminal.
+  
+  More information about `winget` can be found in the [official documentation](https://learn.microsoft.com/en-us/windows/package-manager/winget/).
 
 ### Supported Browsers
 
