@@ -1,163 +1,159 @@
 import os
-import subprocess
 import tkinter as tk
-from tkinter import ttk, filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox, StringVar
 from threading import Thread
 from queue import Queue
 from yt_dlp import YoutubeDL
-import sys
 
 
-class MyLogger:
-    def debug(self, msg):
-        print(f'Debug: {msg}')
+class DownloadApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("YouTube Downloader")
+        self.root.geometry("500x400")
+        self.root.configure(bg="#f0f0f0")
 
-    def warning(self, msg):
-        print(f'Warning: {msg}')
+        if os.path.exists("icon.ico"):
+            self.root.iconbitmap("icon.ico")
 
-    def error(self, msg):
-        print(f'Error: {msg}')
+        self.center_frame = tk.Frame(self.root, bg="#f0f0f0")
+        self.center_frame.place(relx=0.5, rely=0.5, anchor="center")
 
+        self.create_widgets()
 
-def download_and_convert(url, output_dir, progress_queue):
-    ydl_opts = {
-        'format': 'bestaudio',
-        'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
-        'outtmpl': os.path.join(output_dir, '%(title)s.%(ext)s'),
-        'cookiesfrombrowser': ('chrome', 'firefox', 'edge', 'opera', 'brave', 'safari', 'vivaldi'),
-        'quiet': False,
-        'verbose': True,
-        'ignoreerrors': True,
-        'no_warnings': True,
-        'logger': MyLogger(),
-    }
+        self.progress_queue = Queue()
 
-    try:
-        subprocess.run([sys.executable, "-m", "pip", "install",
-                       "--upgrade", "yt-dlp"], capture_output=True)
+    def create_widgets(self):
+        tk.Label(self.center_frame, text="Playlist URL:",
+                 bg="#f0f0f0", font=("Arial", 12)).pack(pady=5)
+        self.url_entry = tk.Entry(
+            self.center_frame, width=50, font=("Arial", 12))
+        self.url_entry.pack(pady=5)
 
-        with YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
-            videos = info.get('entries', [])
+        tk.Label(self.center_frame, text="Output Folder:",
+                 bg="#f0f0f0", font=("Arial", 12)).pack(pady=5)
+        self.folder_var = tk.StringVar()
+        tk.Entry(self.center_frame, textvariable=self.folder_var,
+                 width=40, font=("Arial", 12)).pack(pady=5)
+        tk.Button(self.center_frame, text="Browse", command=self.select_output_folder,
+                  bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(pady=10)
 
-            if not videos:
-                raise Exception("Nenhum vídeo encontrado na playlist")
+        tk.Label(self.center_frame, text="Select Browser for Cookies:",
+                 bg="#f0f0f0", font=("Arial", 12)).pack(pady=5)
+        self.browser_var = StringVar()
+        self.browser_var.set("None")
+        browsers = ["None", "chrome", "firefox", "edge", "opera", "brave"]
+        self.browser_dropdown = ttk.Combobox(
+            self.center_frame, textvariable=self.browser_var, values=browsers, state="readonly", font=("Arial", 12))
+        self.browser_dropdown.pack(pady=5)
 
-            total_videos = len(videos)
-            progress_queue.put(
-                {'status': 'playlist_info', 'total_files': total_videos})
+        self.progress_var = tk.DoubleVar()
+        self.progress_bar = ttk.Progressbar(
+            self.center_frame, orient="horizontal", length=400, mode="determinate", variable=self.progress_var)
+        self.progress_bar.pack(pady=10)
 
-            for index, video in enumerate(videos, 1):
-                if not video:
-                    continue
+        self.status_label = tk.Label(
+            self.center_frame, text="Waiting...", bg="#f0f0f0", font=("Arial", 10))
+        self.status_label.pack(pady=5)
 
-                video_url = f"https://www.youtube.com/watch?v={video['id']}"
-                try:
-                    ydl.download([video_url])
-                    progress_queue.put(
-                        {'status': 'downloading', 'downloaded_bytes': index, 'total_files': total_videos})
-                except Exception as e:
-                    print(f"Error downloading {video_url}: {e}")
-                    continue
+        tk.Button(self.center_frame, text="Download", command=self.start_download,
+                  bg="#4CAF50", fg="white", font=("Arial", 12, "bold")).pack(pady=20)
 
-            progress_queue.put({'status': 'finished'})
+    def select_output_folder(self):
+        folder_selected = filedialog.askdirectory()
+        if folder_selected:
+            self.folder_var.set(folder_selected)
 
-    except Exception as e:
-        progress_queue.put({'status': 'error', 'error_message': str(e)})
+    def start_download(self):
+        url = self.url_entry.get()
+        output_folder = self.folder_var.get()
 
+        if not url or not output_folder:
+            messagebox.showerror(
+                "Error", "Please enter a playlist URL and select an output folder.")
+            return
 
-def start_download(url, output_folder, progress_var, status_label):
-    if not url or not output_folder:
-        messagebox.showerror(
-            'Erro', 'Insira o link da playlist e selecione a pasta de destino.')
-        return
+        browser = self.browser_var.get()
+        if browser == "None":
+            browser = None
 
-    status_label.config(text="Iniciando download...")
-    progress_queue = Queue()
+        self.status_label.config(text="Starting download...")
+        Thread(target=self.download_and_convert, args=(
+            url, output_folder, browser), daemon=True).start()
+        self.update_progress()
 
-    Thread(target=update_progress, args=(progress_queue,
-           progress_var, status_label), daemon=True).start()
-    Thread(target=download_and_convert, args=(
-        url, output_folder, progress_queue), daemon=True).start()
+    def download_and_convert(self, url, output_folder, browser):
+        ydl_opts = {
+            'format': 'bestaudio',
+            'postprocessors': [{'key': 'FFmpegExtractAudio', 'preferredcodec': 'mp3', 'preferredquality': '192'}],
+            'outtmpl': os.path.join(output_folder, '%(title)s.%(ext)s'),
+            'quiet': False,
+            'verbose': True,
+            'ignoreerrors': True,
+            'no_warnings': True,
+        }
 
+        if browser:
+            ydl_opts['cookiesfrombrowser'] = (browser,)
 
-def update_progress(progress_queue, progress_var, status_label):
-    total_files, completed_files = 0, 0
+        try:
+            with YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                videos = info.get('entries', [])
 
-    while True:
-        if not progress_queue.empty():
-            progress_data = progress_queue.get()
+                if not videos:
+                    self.progress_queue.put(
+                        {'status': 'error', 'error_message': "No videos found in the playlist."})
+                    return
+
+                total_videos = len(videos)
+                self.progress_queue.put(
+                    {'status': 'playlist_info', 'total_files': total_videos})
+
+                for index, video in enumerate(videos, 1):
+                    if not video:
+                        continue
+
+                    video_url = f"https://www.youtube.com/watch?v={
+                        video['id']}"
+                    try:
+                        ydl.download([video_url])
+                        self.progress_queue.put(
+                            {'status': 'downloading', 'downloaded_bytes': index, 'total_files': total_videos})
+                    except Exception as e:
+                        print(f"Error downloading {video_url}: {e}")
+                        continue
+
+                self.progress_queue.put({'status': 'finished'})
+
+        except Exception as e:
+            self.progress_queue.put(
+                {'status': 'error', 'error_message': str(e)})
+
+    def update_progress(self):
+        if not self.progress_queue.empty():
+            progress_data = self.progress_queue.get()
 
             if progress_data.get('status') == 'error':
-                status_label.config(
-                    text=f"Erro: {progress_data.get('error_message')}")
-                break
+                self.status_label.config(
+                    text=f"Error: {progress_data.get('error_message')}")
             elif progress_data.get('status') == 'finished':
-                status_label.config(text="Download concluído!")
-                break
+                self.status_label.config(text="Download completed!")
+                self.progress_var.set(100)
             elif progress_data.get('status') == 'playlist_info':
-                total_files = progress_data.get('total_files', 1)
+                self.total_files = progress_data.get('total_files', 1)
             elif progress_data.get('status') == 'downloading':
                 downloaded = progress_data.get('downloaded_bytes', 0)
-                if total_files > 0:
-                    progress_var.set((downloaded / total_files) * 100)
-                    status_label.config(text=f"Progresso: {
-                                        downloaded}/{total_files}")
+                if self.total_files > 0:
+                    progress = (downloaded / self.total_files) * 100
+                    self.progress_var.set(progress)
+                    self.status_label.config(text=f"Downloading: {
+                                             downloaded}/{self.total_files}")
 
-
-def select_output_folder(folder_var):
-    folder_selected = filedialog.askdirectory()
-    if folder_selected:
-        folder_var.set(folder_selected)
-        with open("last_folder.txt", "w") as f:
-            f.write(folder_selected)
-
-
-def load_last_folder():
-    if os.path.exists("last_folder.txt"):
-        with open("last_folder.txt", "r") as f:
-            return f.read().strip()
-    return ""
-
-
-def create_gui():
-    root = tk.Tk()
-    root.title("YouTube Downloader")
-    root.geometry("600x500")
-    root.configure(bg="#f0f0f0")
-
-    last_folder = load_last_folder()
-
-    center_frame = tk.Frame(root, bg="#f0f0f0")
-    center_frame.place(relx=0.5, rely=0.5, anchor="center")
-
-    tk.Label(center_frame, text="Link da Playlist:",
-             bg="#f0f0f0", font=("Arial", 12)).pack(pady=5)
-    url_entry = tk.Entry(center_frame, width=50, bd=2,
-                         relief="groove", font=("Arial", 12))
-    url_entry.pack(pady=5)
-
-    tk.Label(center_frame, text="Pasta de Destino:",
-             bg="#f0f0f0", font=("Arial", 12)).pack(pady=5)
-    folder_var = tk.StringVar(value=last_folder)
-    tk.Entry(center_frame, textvariable=folder_var, width=40, bd=2,
-             relief="groove", font=("Arial", 12)).pack(pady=5)
-    tk.Button(center_frame, text="Selecionar", command=lambda: select_output_folder(
-        folder_var), bg="#4CAF50", fg="white", font=("Arial", 10, "bold")).pack(pady=10)
-
-    progress_var = tk.DoubleVar()
-    ttk.Progressbar(center_frame, orient="horizontal", length=400,
-                    mode="determinate", variable=progress_var).pack(pady=10)
-
-    status_label = tk.Label(
-        center_frame, text="Aguardando...", bg="#f0f0f0", font=("Arial", 10))
-    status_label.pack(pady=5)
-
-    tk.Button(center_frame, text="Baixar", bg="#4CAF50", fg="white", command=lambda: start_download(
-        url_entry.get(), folder_var.get(), progress_var, status_label), font=("Arial", 12, "bold")).pack(pady=20)
-
-    root.mainloop()
+        self.root.after(100, self.update_progress)
 
 
 if __name__ == "__main__":
-    create_gui()
+    root = tk.Tk()
+    app = DownloadApp(root)
+    root.mainloop()
